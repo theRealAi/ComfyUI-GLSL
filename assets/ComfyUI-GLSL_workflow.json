@@ -1,0 +1,516 @@
+{
+  "id": "1664c9b0-943e-4e9e-afda-d0b198d6bd8d",
+  "revision": 0,
+  "last_node_id": 11,
+  "last_link_id": 16,
+  "nodes": [
+    {
+      "id": 11,
+      "type": "Reroute",
+      "pos": [
+        -1516.6230922664138,
+        1224.488797320976
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "IMAGE",
+          "links": [
+            15,
+            16
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 6,
+      "type": "LoadImage",
+      "pos": [
+        -2068.571169879578,
+        1223.6994314047502
+      ],
+      "size": [
+        847.9766121076736,
+        579.7612166982182
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            14
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "ComfyUI_00504_.png",
+        "image"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "PreviewImage",
+      "pos": [
+        -468.49544368584776,
+        1218.9098895858065
+      ],
+      "size": [
+        764.7330200076344,
+        467.38764273220613
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 9,
+      "type": "GLSLShaderNode",
+      "pos": [
+        -1194.2813014865742,
+        1517.6282154177595
+      ],
+      "size": [
+        702.1810185689378,
+        816.5860939396871
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 15
+        },
+        {
+          "name": "mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            12
+          ]
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GLSLShaderNode"
+      },
+      "widgets_values": [
+        "// SPDX-FileCopyrightText: 2021 Martin J. Fiedler <keyj@emphy.de>\n// SPDX-License-Identifier: MIT\n\n// @gips_version=1 @coord=rel @filter=on\n\nuniform float red = 0.05;     // @min=-0.01 @max=0.01 red/cyan strength\nuniform float blue= 0.05;    // @min=-0.01 @max=0.01 blue/yellow strength\nuniform float aspect;  // @min=-2 @max=2 R/B aspect ratio\nuniform vec2 center;   // @min=-1 @max=1\n\nvec4 sampleCA(vec2 pos, float strength) {\n    vec2 dir = (pos - center) * vec2(exp(aspect), exp(-aspect));\n    return pixel(pos + dir * strength);\n}\n\nvec4 run(vec2 pos) {\n    vec4 g = pixel(pos);\n    return vec4(sampleCA(pos, red).r, g.g, sampleCA(pos, blue).b, g.a);\n}",
+        "auto",
+        true,
+        5,
+        false,
+        "0",
+        1,
+        1,
+        7,
+        1,
+        -5,
+        0,
+        7,
+        3
+      ]
+    },
+    {
+      "id": 7,
+      "type": "PreviewImage",
+      "pos": [
+        -474.4221882737155,
+        1747.590094351852
+      ],
+      "size": [
+        782.140959966033,
+        583.5292656490732
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 2,
+      "type": "GLSLGPUProcessor",
+      "pos": [
+        -1187.6421927701024,
+        1216.638319760152
+      ],
+      "size": [
+        689.6145816071587,
+        102
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 16
+        },
+        {
+          "name": "mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            13
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GLSLGPUProcessor",
+        "glsl_shader_name": "Exposure",
+        "glsl_shader_desc": "Exposure adjustment in stops"
+      },
+      "widgets_values": [
+        "production/Tools/Convert Linear to sRGB.glsl",
+        true,
+        1,
+        0.1,
+        7,
+        1,
+        -5,
+        0,
+        7,
+        3,
+        0.707,
+        1,
+        10,
+        0,
+        0.3,
+        0,
+        0,
+        false,
+        0,
+        0,
+        30,
+        0,
+        1,
+        1,
+        1,
+        true,
+        1,
+        0,
+        0,
+        false,
+        2.2,
+        0.5,
+        0.5,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        6500,
+        6500,
+        0,
+        0,
+        false,
+        false,
+        1,
+        0,
+        false,
+        false,
+        false,
+        false,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        false,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0.299,
+        0.587,
+        0.114,
+        true,
+        1,
+        1,
+        1,
+        64,
+        false,
+        0,
+        false,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0.5,
+        1,
+        0.5,
+        0.5,
+        0.5,
+        2,
+        false,
+        0,
+        0,
+        1,
+        1.5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0.5,
+        0,
+        0,
+        0,
+        0,
+        -5,
+        5,
+        0,
+        0,
+        0,
+        false,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0.2,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        false,
+        false,
+        false,
+        0.75,
+        0.166,
+        0.0833,
+        3,
+        0.01,
+        0.02,
+        0,
+        false,
+        4.5,
+        0.4,
+        0.1,
+        0,
+        0,
+        4,
+        0.01,
+        0.5,
+        false,
+        false,
+        15,
+        75,
+        0,
+        45,
+        true,
+        2,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        false,
+        0.75,
+        1,
+        0,
+        1,
+        false,
+        false,
+        true,
+        1,
+        false,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        true,
+        0,
+        false,
+        0,
+        false,
+        0,
+        0
+      ]
+    }
+  ],
+  "links": [
+    [
+      12,
+      9,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      13,
+      2,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ],
+    [
+      14,
+      6,
+      0,
+      11,
+      0,
+      "IMAGE"
+    ],
+    [
+      15,
+      11,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      16,
+      11,
+      0,
+      2,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8616757661071299,
+      "offset": [
+        2273.047857204992,
+        -970.5931598562369
+      ]
+    },
+    "frontendVersion": "1.47.10"
+  },
+  "version": 0.4
+}
