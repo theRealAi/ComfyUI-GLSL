@@ -5,7 +5,11 @@ Provides GPU context and compute pipeline management for GLSL shaders.
 """
 
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+import logging
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 
 class VulkanBackend:
@@ -22,11 +26,12 @@ class VulkanBackend:
     """
 
     def __init__(self):
-        self.instance = None
-        self.device = None
-        self.queue = None
-        self.physical_device = None
-        self.gpu_info = {}
+        self.instance: Optional[Any] = None
+        self.device: Optional[Any] = None
+        self.queue: Optional[Any] = None
+        self.physical_device: Optional[Any] = None
+        self.gpu_info: Dict[str, Any] = {}
+        self.compute_queue_family_index: int = 0
         
         # Check if Vulkan is available
         self._vulkan_available = self._check_vulkan_support()
@@ -37,15 +42,15 @@ class VulkanBackend:
             import vulkan as vk
             
             # Try to list physical devices
-            instances = vk.vkEnumerateInstanceVersion()
+            vk.vkEnumerateInstanceVersion()
             
             # If we get here without exception, Vulkan is available
             return True
         except ImportError:
-            print("Vulkan Python bindings not installed")
+            logger.info("Vulkan Python bindings not installed")
             return False
         except Exception as e:
-            print(f"Vulkan check failed: {e}")
+            logger.info(f"Vulkan check failed: {e}")
             return False
 
     def initialize(self):
@@ -61,7 +66,7 @@ class VulkanBackend:
         try:
             import vulkan as vk
             
-            # Create instance
+            # Create instance with required extensions for compute
             app_info = vk.VkApplicationInfo(
                 sType=vk.VK_STRUCTURE_TYPE_APPLICATION_INFO,
                 pApplicationName="ComfyUI GLSL",
@@ -71,9 +76,16 @@ class VulkanBackend:
                 apiVersion=vk.VK_API_VERSION_1_0
             )
             
+            # Check for required instance extensions
+            instance_extensions = [
+                vk.VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+            ]
+            
             instance_create_info = vk.VkInstanceCreateInfo(
                 sType=vk.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-                pApplicationInfo=app_info
+                pApplicationInfo=app_info,
+                enabledExtensionCount=len(instance_extensions),
+                ppEnabledExtensionNames=instance_extensions
             )
             
             self.instance = vk.vkCreateInstance(instance_create_info, None)
@@ -84,6 +96,7 @@ class VulkanBackend:
             if not physical_devices:
                 raise Exception("No Vulkan-compatible GPU found")
                 
+            # Select the first available device (in production, we'd want better selection logic)
             self.physical_device = physical_devices[0]
             
             # Get device properties
@@ -97,8 +110,18 @@ class VulkanBackend:
                 "device_id": device_properties.deviceID
             }
             
-            # Create logical device
-            queue_family_index = 0
+            # Check if compute is supported on this device
+            if not self._is_compute_supported(device_properties):
+                raise Exception("Selected GPU does not support compute operations")
+            
+            # Find queue family with compute support
+            queue_family_index = self._find_compute_queue_family(self.physical_device)
+            if queue_family_index == -1:
+                raise Exception("No compute queue family found")
+                
+            self.compute_queue_family_index = queue_family_index
+            
+            # Create logical device with compute support
             device_create_info = vk.VkDeviceCreateInfo(
                 sType=vk.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                 queueCreateInfoCount=1,
@@ -109,7 +132,10 @@ class VulkanBackend:
                         queueCount=1,
                         pQueuePriorities=[1.0]
                     )
-                ]
+                ],
+                # Enable compute features
+                enabledExtensionCount=0,
+                ppEnabledExtensionNames=None
             )
             
             self.device = vk.vkCreateDevice(self.physical_device, device_create_info, None)
@@ -117,8 +143,33 @@ class VulkanBackend:
             # Get queue
             self.queue = vk.vkGetDeviceQueue(self.device, queue_family_index, 0)
             
+            logger.info(f"Vulkan initialized successfully on {self.gpu_info['device_name']}")
+            
         except Exception as e:
             raise Exception(f"Vulkan initialization failed: {e}")
+
+    def _is_compute_supported(self, device_properties) -> bool:
+        """Check if the physical device supports compute operations."""
+        # In a real implementation, we'd check for specific compute capabilities
+        # For now, we assume all modern GPUs support compute
+        return True
+
+    def _find_compute_queue_family(self, physical_device) -> int:
+        """Find a queue family that supports compute operations."""
+        try:
+            import vulkan as vk
+            
+            # Enumerate queue families
+            queue_families = vk.vkGetPhysicalDeviceQueueFamilyProperties(physical_device)
+            
+            for i, queue_family in enumerate(queue_families):
+                if queue_family.queueFlags & vk.VK_QUEUE_COMPUTE_BIT:
+                    return i
+                    
+            return -1  # No compute queue found
+        except Exception as e:
+            logger.warning(f"Error finding compute queue family: {e}")
+            return 0  # Default to first queue
 
     def get_gpu_info(self) -> Dict[str, Any]:
         """
@@ -143,6 +194,7 @@ class VulkanBackend:
         if not self._vulkan_available:
             raise Exception("Vulkan not initialized")
             
+        logger.debug(f"Creating compute pipeline from {len(spirv_binary)} bytes SPIR-V")
         return f"Pipeline for {len(spirv_binary)} bytes SPIR-V"
 
     def create_texture(self, width: int, height: int) -> Any:
@@ -159,6 +211,7 @@ class VulkanBackend:
         if not self._vulkan_available:
             raise Exception("Vulkan not initialized")
             
+        logger.debug(f"Creating texture {width}x{height}")
         return f"Texture {width}x{height}"
 
     def execute_compute(self, pipeline, resources, uniforms) -> None:
@@ -173,7 +226,7 @@ class VulkanBackend:
         if not self._vulkan_available:
             raise Exception("Vulkan not initialized")
             
-        print(f"Executing compute on {self.gpu_info.get('device_name', 'Unknown GPU')}")
+        logger.debug(f"Executing compute on {self.gpu_info.get('device_name', 'Unknown GPU')}")
 
     def synchronize(self) -> None:
         """Synchronize GPU operations."""
@@ -181,7 +234,7 @@ class VulkanBackend:
             return
             
         # In a real implementation, we would wait for command buffers
-        pass
+        logger.debug("Synchronizing GPU operations")
 
     def shutdown(self):
         """Shutdown Vulkan backend."""
@@ -194,8 +247,18 @@ class VulkanBackend:
             if self.instance:
                 vk.vkDestroyInstance(self.instance, None)
                 
+            logger.info("Vulkan backend shutdown")
+                
         except Exception as e:
-            print(f"Error during Vulkan shutdown: {e}")
+            logger.error(f"Error during Vulkan shutdown: {e}")
+
+    def is_available(self) -> bool:
+        """Check if Vulkan backend is available."""
+        return self._vulkan_available
+
+    def get_queue_family_index(self) -> int:
+        """Get the compute queue family index."""
+        return self.compute_queue_family_index
 
 
 if __name__ == "__main__":

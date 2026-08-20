@@ -6,8 +6,12 @@ Main GLSL runtime interface for shader compilation and execution.
 
 import os
 import hashlib
+import logging
 from typing import Dict, Any, Optional
 from .backend.vulkan import VulkanBackend
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 
 class GLSLRuntime:
@@ -38,8 +42,9 @@ class GLSLRuntime:
                 self.backend = VulkanBackend()
                 self.backend.initialize()
                 self._initialized = True
+                logger.info("Vulkan backend initialized successfully")
             except Exception as e:
-                print(f"Warning: Failed to initialize Vulkan backend: {e}")
+                logger.warning(f"Failed to initialize Vulkan backend: {e}")
                 # Continue without Vulkan, but execution will fail
                 self.backend = None
 
@@ -64,6 +69,7 @@ class GLSLRuntime:
         shader_key = self._get_shader_hash(source, metadata)
         
         if shader_key in self.shader_cache:
+            logger.debug(f"Using cached SPIR-V for shader {shader_key[:8]}...")
             return self.shader_cache[shader_key]
         
         # In a real implementation, we would use glsl-compiler here
@@ -75,6 +81,7 @@ class GLSLRuntime:
             # Cache SPIR-V
             self.shader_cache[shader_key] = spirv
             
+            logger.debug(f"Compiled shader to {len(spirv)} bytes SPIR-V")
             return spirv
         except Exception as e:
             raise Exception(f"Shader compilation failed: {e}")
@@ -96,7 +103,7 @@ class GLSLRuntime:
             return spirv
         except ImportError:
             # Fallback - simulate successful compilation for scaffolding
-            print("glsl-compiler not available - using placeholder SPIR-V")
+            logger.info("glsl-compiler not available - using placeholder SPIR-V")
             return b"\x03\x02\x23\x07"  # Placeholder SPIR-V magic number
         except Exception as e:
             raise Exception(f"GLSL compilation failed: {e}")
@@ -119,6 +126,7 @@ class GLSLRuntime:
         
         try:
             validate_shader(shader_source, metadata)
+            logger.debug("Shader validation passed")
             return True
         except Exception as e:
             raise Exception(f"Shader validation failed: {e}")
@@ -151,7 +159,7 @@ class GLSLRuntime:
         self._initialize_backend()
         
         if not self._initialized or self.backend is None:
-            print("Warning: Vulkan backend not initialized, returning input image")
+            logger.warning("Vulkan backend not initialized, returning input image")
             return image_input
         
         try:
@@ -169,8 +177,8 @@ class GLSLRuntime:
             # 5. Synchronize and return result
             
             # Placeholder for execution
-            print(f"Executing shader in {mode} mode")
-            print(f"Shader hash: {self._get_shader_hash(shader_source, metadata)}")
+            logger.debug(f"Executing shader in {mode} mode")
+            logger.debug(f"Shader hash: {self._get_shader_hash(shader_source, metadata)}")
             
             return image_input  # Return input as placeholder
         except Exception as e:
@@ -199,6 +207,8 @@ class GLSLRuntime:
         # Write shader to file
         with open(full_path, 'w') as f:
             f.write(shader_source)
+            
+        logger.info(f"Saved shader to {full_path}")
 
     def get_diagnostics(self) -> Dict[str, Any]:
         """
@@ -242,7 +252,9 @@ class GLSLRuntime:
         """
         # Combine source, metadata, and version info
         combined = source + str(metadata)
-        return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+        shader_hash = hashlib.sha256(combined.encode('utf-8')).hexdigest()
+        logger.debug(f"Generated shader hash: {shader_hash[:16]}...")
+        return shader_hash
 
 
 if __name__ == "__main__":
