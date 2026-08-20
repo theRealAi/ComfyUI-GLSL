@@ -9,6 +9,7 @@ import hashlib
 import logging
 from typing import Dict, Any, Optional
 from .backend.vulkan import VulkanBackend
+from ..shader.compiler import ShaderCompiler
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class GLSLRuntime:
         self.backend = None
         self.shader_cache = {}
         self.pipeline_cache = {}
+        self.compiler = ShaderCompiler()
         
         # Initialize backend lazily on first use
         self._initialized = False
@@ -65,48 +67,18 @@ class GLSLRuntime:
         # Lazy backend initialization
         self._initialize_backend()
         
-        # Create hash of shader source + metadata for caching
-        shader_key = self._get_shader_hash(source, metadata)
-        
-        if shader_key in self.shader_cache:
-            logger.debug(f"Using cached SPIR-V for shader {shader_key[:8]}...")
-            return self.shader_cache[shader_key]
-        
-        # In a real implementation, we would use glsl-compiler here
-        # For now, we'll simulate compilation
         try:
-            # Placeholder - in reality this would call glslc or similar
-            spirv = self._compile_glsl_to_spirv(source)
+            # Use the dedicated shader compiler
+            spirv = self.compiler.compile(source, metadata)
             
-            # Cache SPIR-V
+            # Cache SPIR-V in our own cache as well for consistency with the spec
+            shader_key = self._get_shader_hash(source, metadata)
             self.shader_cache[shader_key] = spirv
             
             logger.debug(f"Compiled shader to {len(spirv)} bytes SPIR-V")
             return spirv
         except Exception as e:
             raise Exception(f"Shader compilation failed: {e}")
-
-    def _compile_glsl_to_spirv(self, source: str) -> bytes:
-        """
-        Compile GLSL to SPIR-V using glsl-compiler.
-        
-        Args:
-            source (str): GLSL source code
-            
-        Returns:
-            bytes: Compiled SPIR-V bytecode
-        """
-        # Import glsl-compiler dynamically for lazy loading
-        try:
-            from glsl_compiler import compile_glsl
-            spirv = compile_glsl(source, "compute")
-            return spirv
-        except ImportError:
-            # Fallback - simulate successful compilation for scaffolding
-            logger.info("glsl-compiler not available - using placeholder SPIR-V")
-            return b"\x03\x02\x23\x07"  # Placeholder SPIR-V magic number
-        except Exception as e:
-            raise Exception(f"GLSL compilation failed: {e}")
 
     def validate(self, shader_source: str, metadata: Dict[str, Any]) -> bool:
         """
@@ -163,7 +135,7 @@ class GLSLRuntime:
             return image_input
         
         try:
-            # Compile shader
+            # Compile shader using our dedicated compiler
             spirv = self.compile(shader_source, metadata)
             
             # Validate shader
@@ -224,6 +196,7 @@ class GLSLRuntime:
             "initialized": self._initialized,
             "shader_cache_size": len(self.shader_cache),
             "pipeline_cache_size": len(self.pipeline_cache),
+            "compiler": self.compiler.get_diagnostics()
         }
         
         if self.backend:
@@ -289,6 +262,10 @@ void main() {
         # Test compilation hash
         shader_hash = runtime._get_shader_hash(test_shader, metadata)
         print("Shader hash:", shader_hash[:16] + "...")
+        
+        # Test compiler
+        spirv = runtime.compiler.compile(test_shader, metadata)
+        print(f"✓ Compiled shader to {len(spirv)} bytes SPIR-V")
         
         print("✓ Runtime initialized successfully")
     except Exception as e:
