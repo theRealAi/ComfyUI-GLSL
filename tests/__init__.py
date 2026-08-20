@@ -1,0 +1,1 @@
+# ComfyUI GLSL Package - tests module init

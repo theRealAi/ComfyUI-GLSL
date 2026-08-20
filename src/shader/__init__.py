@@ -1,0 +1,1 @@
+# ComfyUI GLSL Package - shader module init
