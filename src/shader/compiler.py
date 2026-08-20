@@ -5,10 +5,13 @@ Compiles GLSL shaders to SPIR-V bytecode with validation.
 """
 
 import os
+import re
 import hashlib
 import logging
-from typing import Dict, Any, Optional, Tuple
-from .parser import parse_metadata
+import shutil
+import subprocess
+import tempfile
+from typing import Dict, Any, Optional
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -27,20 +30,21 @@ class ShaderCompiler:
 
     def __init__(self):
         self.cache = {}
-        self.compiler_available = self._check_compiler_availability()
+        self.glslc_path = self._find_glslc()
+        self.compiler_available = self.glslc_path is not None
 
-    def _check_compiler_availability(self) -> bool:
-        """Check if GLSL compiler is available."""
-        try:
-            # Try to import glsl-compiler
-            from glsl_compiler import compile_glsl
-            return True
-        except ImportError:
-            logger.info("glsl-compiler not available - using fallback")
-            return False
-        except Exception as e:
-            logger.warning(f"GLSL compiler check failed: {e}")
-            return False
+    def _find_glslc(self) -> Optional[str]:
+        """Locate the Vulkan SDK glslc compiler."""
+        path = shutil.which("glslc")
+        if path:
+            return path
+        # Common Windows Vulkan SDK install
+        sdk_root = os.environ.get("VULKAN_SDK")
+        if sdk_root:
+            candidate = os.path.join(sdk_root, "Bin", "glslc.exe")
+            if os.path.isfile(candidate):
+                return candidate
+        return None
 
     def compile(self, source: str, metadata: Optional[Dict[str, Any]] = None) -> bytes:
         """
@@ -64,13 +68,11 @@ class ShaderCompiler:
             return self.cache[cache_key]
         
         try:
-            if self.compiler_available:
-                # Use actual compiler
-                spirv = self._compile_with_glslc(source)
-            else:
-                # Fallback to placeholder
-                logger.info("Using fallback SPIR-V compilation")
-                spirv = self._compile_fallback(source)
+            if not self.compiler_available:
+                raise Exception(
+                    "glslc not found. Install the Vulkan SDK and ensure glslc is on PATH."
+                )
+            spirv = self._compile_with_glslc(source)
             
             # Cache result
             self.cache[cache_key] = spirv
@@ -80,9 +82,13 @@ class ShaderCompiler:
         except Exception as e:
             raise Exception(f"Shader compilation failed: {e}")
 
+    def _strip_metadata_comment(self, source: str) -> str:
+        """Remove the leading metadata block comment before compiling."""
+        return re.sub(r'^\s*/\*[\s\S]*?\*/', '', source, count=1).lstrip()
+
     def _compile_with_glslc(self, source: str) -> bytes:
         """
-        Compile GLSL using the glsl-compiler.
+        Compile GLSL compute shader with system glslc.
         
         Args:
             source (str): GLSL source code
@@ -90,28 +96,27 @@ class ShaderCompiler:
         Returns:
             bytes: Compiled SPIR-V bytecode
         """
-        try:
-            from glsl_compiler import compile_glsl
-            spirv = compile_glsl(source, "compute")
+        glsl_source = self._strip_metadata_comment(source)
+        with tempfile.TemporaryDirectory() as tmp:
+            src_path = os.path.join(tmp, "shader.comp")
+            out_path = os.path.join(tmp, "shader.spv")
+            with open(src_path, "w", encoding="utf-8") as f:
+                f.write(glsl_source)
+
+            result = subprocess.run(
+                [self.glslc_path, "-fshader-stage=compute", src_path, "-o", out_path],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                err = (result.stderr or result.stdout or "unknown glslc error").strip()
+                raise Exception(err)
+
+            with open(out_path, "rb") as f:
+                spirv = f.read()
+
             logger.debug(f"Successfully compiled shader to {len(spirv)} bytes SPIR-V")
             return spirv
-        except Exception as e:
-            raise Exception(f"GLSL compilation failed: {e}")
-
-    def _compile_fallback(self, source: str) -> bytes:
-        """
-        Fallback SPIR-V generation for development.
-        
-        Args:
-            source (str): GLSL source code
-            
-        Returns:
-            bytes: Placeholder SPIR-V bytecode
-        """
-        # In a real implementation, this would generate valid SPIR-V
-        # For now we return a placeholder with proper magic number
-        logger.warning("Using fallback compilation - not suitable for production")
-        return b"\x03\x02\x23\x07"  # SPIR-V magic number
 
     def validate_spirv(self, spirv_binary: bytes) -> bool:
         """
@@ -167,6 +172,7 @@ class ShaderCompiler:
         """
         return {
             "compiler_available": self.compiler_available,
+            "glslc_path": self.glslc_path,
             "cache_size": len(self.cache),
             "cache_keys": list(self.cache.keys())[:5]  # Show first 5 keys
         }

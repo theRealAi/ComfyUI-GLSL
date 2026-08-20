@@ -23,9 +23,10 @@ def parse_metadata(source: str) -> Dict[str, Any]:
     Returns:
         dict: Parsed metadata including name, description, version, inputs, uniforms
     """
-    # Find all comment blocks
-    comments = re.findall(r'/\*+([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/', source)
-    
+    # Find comment blocks. Use a non-capturing pattern so findall returns full matches
+    # (capturing groups would return tuples and break .strip()).
+    comments = re.findall(r'/\*[\s\S]*?\*/', source)
+
     if not comments:
         return {
             "name": "Unnamed Shader",
@@ -34,10 +35,10 @@ def parse_metadata(source: str) -> Dict[str, Any]:
             "inputs": [],
             "uniforms": []
         }
-    
-    # Extract first comment block (should contain metadata)
-    comment_block = comments[0]
-    
+
+    # Strip /* */ delimiters from the first comment block
+    comment_block = comments[0][2:-2]
+
     # Parse metadata lines
     lines = comment_block.strip().split('\n')
     

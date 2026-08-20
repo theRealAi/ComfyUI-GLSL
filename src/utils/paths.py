@@ -9,6 +9,12 @@ import re
 from typing import List
 
 
+def _package_root() -> str:
+    """Return ComfyUI-GLSL package root (parent of src/)."""
+    # paths.py lives at src/utils/paths.py -> go up three levels
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
 def discover_shader_directories() -> List[str]:
     """
     Discover all shader directories in the package.
@@ -16,16 +22,15 @@ def discover_shader_directories() -> List[str]:
     Returns:
         list: List of absolute paths to shader directories
     """
-    base_path = os.path.dirname(os.path.dirname(__file__))
-    shaders_dir = os.path.join(base_path, 'shaders')
-    
+    shaders_dir = os.path.join(_package_root(), 'shaders')
+
     # Define standard shader directories
     dirs = [
         os.path.join(shaders_dir, 'examples'),
         os.path.join(shaders_dir, 'production'),
         os.path.join(shaders_dir, 'user')
     ]
-    
+
     # Filter only existing directories
     return [d for d in dirs if os.path.exists(d)]
 
@@ -86,23 +91,22 @@ def resolve_shader_path(shader_id: str) -> str:
     Raises:
         ValueError: If shader path is invalid or unsafe
     """
-    base_path = os.path.dirname(os.path.dirname(__file__))
-    shaders_dir = os.path.join(base_path, 'shaders')
-    
+    shaders_dir = os.path.join(_package_root(), 'shaders')
+
     # Normalize path
     normalized = os.path.normpath(shader_id)
-    
+
     # Prevent directory traversal
     if '..' in normalized:
         raise ValueError("Invalid shader path: directory traversal detected")
-    
+
     # Check that it's within the shaders directory
     full_path = os.path.join(shaders_dir, normalized)
-    
+
     # Ensure file exists
     if not os.path.exists(full_path):
         raise ValueError(f"Shader file does not exist: {full_path}")
-        
+
     return full_path
 
 
@@ -110,10 +114,9 @@ def create_shader_directories():
     """
     Create standard shader directories if they don't exist.
     """
-    dirs = discover_shader_directories()
-    
-    for directory in dirs:
-        os.makedirs(directory, exist_ok=True)
+    shaders_dir = os.path.join(_package_root(), 'shaders')
+    for name in ('examples', 'production', 'user'):
+        os.makedirs(os.path.join(shaders_dir, name), exist_ok=True)
 
 
 if __name__ == "__main__":

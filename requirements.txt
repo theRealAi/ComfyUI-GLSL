@@ -1,11 +1,9 @@
 # ComfyUI GLSL Package Requirements
+#
+# Vulkan Python bindings (import name: vulkan)
+vulkan>=1.3.275.0
 
-# Core dependencies
-glsl-compiler>=1.0.0
-pyvulkan>=0.2.0
+# Optional: Python shaderc bindings (alternative to system glslc)
+# pyshaderc>=1.1.0
 
-# Utility dependencies (minimal)
 numpy>=1.21.0
-
-# Development dependencies (optional, for testing)
-pytest>=6.0.0
